@@ -168,6 +168,9 @@ class Tetris:
 
     def _get_rotated_piece(self):
         '''Returns the current piece, including rotation'''
+        # print("aaaa")
+        # print(self.current_rotation)
+        # print(Tetris.TETROMINOS)
         return Tetris.TETROMINOS[self.current_piece][self.current_rotation]
 
 
@@ -233,7 +236,7 @@ class Tetris:
 
 
     def _add_piece_to_board(self, piece, pos):
-        '''Place a piece in the board, returning the resulting board'''        
+        '''Place a piece in the board, returning the resulting board'''  
         board = [x[:] for x in self.board]
         for x, y in piece:
             board[y + pos[1]][x + pos[0]] = Tetris.MAP_BLOCK
@@ -655,10 +658,42 @@ class Tetris:
         if full_line == -1 or tile_on_line:
             return True
         return False
+    
+    def has_next_states(self):
+        for piece_id in range(7):
+            if piece_id == 6: 
+                rotations = [0]
+            elif piece_id == 0:
+                rotations = [0, 90]
+            else:
+                rotations = [0, 90, 180, 270]
 
-    def get_next_states(self):
+            # For all rotations
+            for rotation in rotations:
+                piece = Tetris.TETROMINOS[piece_id][rotation]
+                min_x = min([p[0] for p in piece])
+                max_x = max([p[0] for p in piece])
+
+                # For all positions
+                for x in range(-min_x, Tetris.BOARD_WIDTH - max_x):
+                    pos = [x, 0]
+
+                    # Drop piece
+                    while not self._check_collision(piece, pos):
+                        pos[1] += 1
+                    pos[1] -= 1
+
+                    # Valid move
+                    if pos[1] >= 0:
+                        return True
+        return False
+
+
+    def get_next_states(self, pieces = None):
         '''Get all possible next states'''
         states = {}
+        if pieces is not None:
+            states = []
         piece_id = self.current_piece
         
         if piece_id == 6: 
@@ -685,8 +720,11 @@ class Tetris:
 
                 # Valid move
                 if pos[1] >= 0:
-                    board = self._add_piece_to_board(piece, pos)
-                    states[(x, rotation)] = self._get_board_props(board)
+                    if pieces is None:
+                        states[(x, rotation)] = self._get_board_props(self.board)
+                    else:
+                        states.append((piece, pos))
+                        # print(f"appended {piece}, {pos}")
 
         return states
 
@@ -710,6 +748,12 @@ class Tetris:
                 else:
                     score -= 1
         return score
+    
+    # def run_mcts(self):
+    #     board = self._get_complete_board()
+    #     model = import_regression_model(self.)
+    #     agent = MCAgent(board, self.PLAYOUTS, )
+
 
     def play(self, x, rotation, render=False, render_delay=None, reachability=False):
         '''Makes a play given a position and a rotation, returning the reward and if the game is over'''

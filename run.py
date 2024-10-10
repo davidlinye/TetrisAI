@@ -6,7 +6,16 @@ from statistics import mean, median
 import random
 # from logs import CustomTensorBoard
 from tqdm import tqdm
-        
+import argparse
+import numpy as np
+import os
+from PIL import Image
+import joblib
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-o", "--option", type=int, default=0, help="Select mode to play Tetris in: 0 (dqn), 1 (MCTS). Default: 0")
+parser.add_argument("-m", "--reg_model", type=str, default="rf", help="Determine the model used for reward function of MCTS. Options: rf (random forest), linear, knn (k-nearest neighbour), cnn (convolutional neural network). Default: rf")
+args = parser.parse_args()
 
 # Run dqn with Tetris
 def dqn():
@@ -93,10 +102,11 @@ def dqn():
 
 # Run MC with Tetris
 def MCTS():
-    env = Tetris()
-    iterations = 1000
+    target_image = './hi.png'
+    env = Tetris(target_image)
+    iterations = 100
     episodes = 2000
-    max_steps = None
+    max_steps = 30
     epsilon_stop_episode = 1500
     mem_size = 20000
     discount = 0.95
@@ -132,16 +142,64 @@ def MCTS():
             calculate the average and backpropagate win/loss
 
     """
+    env.reset()
+    current_state = env.board
 
-    current_state = env.reset()
+    agent = MCAgent(current_state, playouts, args.reg_model)
 
-    agent = MCAgent(current_state, playouts)
+    n_moves = 0
 
-    for _ in tqdm(range(iterations)):
-        node = MCAgent.select()
-        child, value = MCAgent.expand_and_simulate(node)
-        MCAgent.backpropagate(child, value)
+    curnode = agent.root
+    parent = agent.root
 
+    best_sequence = []
+
+    def display_tree(node, level=0):
+        print('  ' * level + str(node.leaf))
+        for child in node.children:
+            display_tree(child, level + 1)
+
+    while curnode.t.board != env.target and n_moves < max_steps:
+        # print(np.array(curnode.t.board))
+        print(f"Move {n_moves}")
+        # for i in range(iterations):
+        for i in tqdm(range(iterations)):
+            # print("select")
+            node = agent.select(curnode, parent)
+            # print("expand")
+            # print(node.leaf)
+            # print(node.t.has_next_states())
+            # print(np.array(node.t.board))
+            child, value = agent.expand_and_simulate(node)
+            # print("back")
+            agent.backpropagate(child, value)
+            # display_tree(curnode)
+            # print(np.array(curnode.t.board))
+        # print(np.array(curnode.t.board))
+        # print("end")
+        parent = curnode
+        bestnode = None
+        bestscore = 0
+        for child in curnode.children:
+            if child.visits > 0:
+                current_score = child.uct(iterations)
+                if current_score > bestscore or bestnode is None:
+                    bestnode = child
+                    bestscore = current_score
+        best_sequence.append(bestnode)
+        curnode = bestnode
+        agent = MCAgent(curnode.t.board, playouts, args.reg_model)
+        n_moves += 1
+    # try:
+    #     os.makedirs("mcts_best_sequence")
+    # finally:
+    for i, node in enumerate(best_sequence):
+        array = np.array(node.t.board, dtype=np.uint8)
+        image_array = 255 - array * 255
+        image = Image.fromarray(image_array)
+
+        file_path = os.path.join("mcts_best_sequence", f"{i}.png")
+        image.save(file_path)
 
 
     # for episode in tqdm(range(episodes)):
@@ -188,5 +246,9 @@ def MCTS():
     #                 # max_score=max_score)
 
 if __name__ == "__main__":
-    dqn()
-    # MCTS()
+    if args.option == 0:
+        print("Running Tetris with DQN")
+        dqn()
+    elif args.option == 1:
+        print("Running Tetris with MCTS")
+        MCTS()
