@@ -71,7 +71,7 @@ def main():
             plt.title(f'Score distribution {args.folder_location}')
             plt.xlabel('Score Ranges')
             plt.ylabel('Frequency')
-            plt.xticks(range(1, max(scores) + 1), rotation=-45)
+            plt.xticks(range(1, max(scores) + 1), rotation=-45, fontsize=8)
             plt.savefig(f"graphs/histogram_{args.folder_location}.png")
         else:
             scores_begin = [score for score in scores if score < 50]
@@ -82,7 +82,7 @@ def main():
             plt.title(f'Score distribution {args.folder_location} backwards')
             plt.xlabel('Score Ranges')
             plt.ylabel('Frequency')
-            plt.xticks(range(1, max(scores_begin) + 1), rotation=-45)
+            plt.xticks(range(1, max(scores_begin) + 1), rotation=-45, fontsize=8)
             plt.savefig(f"graphs/histogram_{args.folder_location}_begin.png")
 
             plt.clf()
@@ -93,7 +93,7 @@ def main():
             plt.title(f'Score distribution {args.folder_location} forwards')
             plt.xlabel('Score Ranges')
             plt.ylabel('Frequency')
-            plt.xticks(range(min(scores_end), 101), rotation=-45)
+            plt.xticks(range(min(scores_end), 101), rotation=-45, fontsize=8)
             plt.savefig(f"graphs/histogram_{args.folder_location}_end.png")
 
     end_time = time.time()

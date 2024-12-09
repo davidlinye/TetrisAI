@@ -107,8 +107,12 @@ class MCAgent:
 
     def recursive_select(self, current, parent):
         # print("R")
-        bestuct = current.uct(parent.visits)
-        bestnode = current
+        if not current.leaf:
+            bestuct = current.uct(parent.visits)
+            bestnode = current
+        else:
+            bestuct = -1000
+            bestnode = None
         if len(current.children) > 0:
             for child in current.children:
                 childuct, childbest = self.recursive_select(child, current)
@@ -154,7 +158,7 @@ class MCAgent:
                 # less moves = higher value
                 if value == 0:
                     value = 1
-                converted_value = 1/value
+                converted_value = 100 - value
                 # TODO: determine if win or loss (value = 0: loss, value = 1: win)
                 # print("r")
                 return child, converted_value
