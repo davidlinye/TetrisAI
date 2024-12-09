@@ -209,14 +209,18 @@ class Tetris:
             self.game_over = True
 
 
-    def _check_collision(self, piece, pos):
+    def _check_collision(self, piece, pos, current_board=None):
         '''Check if there is a collision between the current piece and the board'''
+        if not current_board:
+            board = self.board
+        else:
+            board = current_board
         for x, y in piece:
             x += pos[0]
             y += pos[1]
             if x < 0 or x >= Tetris.BOARD_WIDTH \
                     or y < 0 or y >= Tetris.BOARD_HEIGHT \
-                    or self.board[y][x] == Tetris.MAP_BLOCK:
+                    or board[y][x] == Tetris.MAP_BLOCK:
                 return True
         return False
 
@@ -235,9 +239,12 @@ class Tetris:
         self.current_rotation = r
 
 
-    def _add_piece_to_board(self, piece, pos):
+    def _add_piece_to_board(self, piece, pos, current_board=None):
         '''Place a piece in the board, returning the resulting board'''  
-        board = [x[:] for x in self.board]
+        if not current_board:
+            board = [x[:] for x in self.board]
+        else:
+            board = current_board
         for x, y in piece:
             board[y + pos[1]][x + pos[0]] = Tetris.MAP_BLOCK
         return board
@@ -316,7 +323,7 @@ class Tetris:
         sum_height, max_height, min_height = self._height(board)
         return [lines, holes, total_bumpiness, sum_height]
 
-    def generate_samples(self, depth, num_samples=0):
+    def generate_samples(self, depth, num_samples=0, forwards=0):
         # depth: level of recursion, sample_count: number of random samples. If None, then generate all possible samples from recursion 0 up to recursion depth
         # set level of recursion (explodes exponentially)
         self.depth = depth
@@ -340,19 +347,42 @@ class Tetris:
             n = 0
             while n < num_samples:
                 
-                current_board = self.target.copy()
                 # set a random depth to play towards
                 self.depth = random.randint(1, depth)
 
                 print(f"sample {n} depth {self.depth}")
-                self.get_past_states_random(current_board, n, 0)
+                if forwards == 0 or random.randint(0,1):
+                # if False:
+                    current_board = self.target.copy()
+                    self.get_past_states_random(current_board, n, 0)
+                else:
+                    recursion = 100
+                    current_board = copy.deepcopy(self.board)
+                    while self.has_next_states(current_board) and recursion > 100 - self.depth:
+                        states = []
+                        for piece_id in range(len(self.TETROMINOS)):
+                            # print(piece_id)
+                            self.current_piece = piece_id
+                            current_states = self.get_next_states(1, current_board)
+                            for state in current_states:
+                                states.append(state)
+                        # print(np.array(current_board))
+                        # print(self.has_next_states(current_board))
+                        random_action = random.choice(states)
+                        self._add_piece_to_board(random_action[0], random_action[1], current_board)
+                        self._clear_lines(current_board)
+                        recursion -= 1
+                        # time.sleep(1)
+                    self._convert_single_sample_to_output(current_board, num_samples, recursion, self.JSON_OUTPUT, self.IMAGE_OUTPUT)
+                    # print(recursion)
+
                 n += 1
             
-        # for n, sample in enumerate(self.samples):
-        #     # save to image file
-        #     self._convert_array_to_image(sample, n, num_samples)
+        for n, sample in enumerate(self.samples):
+            # save to image file
+            self._convert_array_to_image(sample, n, num_samples)
 
-        self.export_samples_to_json(depth, num_samples)
+        # self.export_samples_to_json(depth, num_samples)
 
     def get_past_states_random(self, current_board, num_samples, recursion):
         # - add no line / line at every possible row (up to the highest placed tiles): shift everything else upward
@@ -427,12 +457,15 @@ class Tetris:
             # r_14 = 20% chance
             # r_15 = 40% chance
 
-
-            if (choice <= 1 and len(options_line_added) != 0) or not options:
+            if (choice <= 1 and len(options_line_added) != 0):
                 current_board = random.choice(options_line_added)
             # 90% chance to not add a line
-            else:
+            elif len(options) != 0:
                 current_board = random.choice(options)
+            # if no options left, end run
+            else:
+                self._convert_single_sample_to_output(current_board, num_samples, recursion, self.JSON_OUTPUT, self.IMAGE_OUTPUT)
+                return
             # print(np.array(current_board))
             # self._convert_array_to_image([current_board, 0], recursion, 1)
             del boards
@@ -659,7 +692,7 @@ class Tetris:
             return True
         return False
     
-    def has_next_states(self):
+    def has_next_states(self, current_board=None):
         for piece_id in range(7):
             if piece_id == 6: 
                 rotations = [0]
@@ -679,17 +712,17 @@ class Tetris:
                     pos = [x, 0]
 
                     # Drop piece
-                    while not self._check_collision(piece, pos):
+                    while not self._check_collision(piece, pos, current_board):
                         pos[1] += 1
                     pos[1] -= 1
 
                     # Valid move
                     if pos[1] >= 0:
-                        return True
+                        return (piece_id, rotation, pos)
         return False
 
 
-    def get_next_states(self, pieces = None):
+    def get_next_states(self, pieces = None, current_board = None):
         '''Get all possible next states'''
         states = {}
         if pieces is not None:
@@ -714,14 +747,17 @@ class Tetris:
                 pos = [x, 0]
 
                 # Drop piece
-                while not self._check_collision(piece, pos):
+                while not self._check_collision(piece, pos, current_board):
                     pos[1] += 1
                 pos[1] -= 1
 
                 # Valid move
                 if pos[1] >= 0:
                     if pieces is None:
-                        states[(x, rotation)] = self._get_board_props(self.board)
+                        if current_board:
+                            states[(x, rotation)] = self._get_board_props(current_board)
+                        else:
+                            states[(x, rotation)] = self._get_board_props(self.board)
                     else:
                         states.append((piece, pos))
                         # print(f"appended {piece}, {pos}")
